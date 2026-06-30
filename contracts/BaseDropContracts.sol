@@ -119,46 +119,4 @@ contract ChallengeFactory is Ownable, ReentrancyGuard {
         ChallengeToken(c.tokenAddress).mint(msg.sender, _amount);
         c.totalMints += _amount;
 
-        emit Minted(_challengeId, msg.sender, _amount);
-    }
-
-    function settleChallenge(uint256 _challengeId, address _winner) external onlyOwner nonReentrant {
-        Challenge storage c = challenges[_challengeId];
-        require(block.timestamp >= c.deadline, "Not ended yet");
-        require(!c.settled, "Already settled");
-        require(_winner != address(0), "Invalid winner");
-
-        c.settled = true;
-        c.winner = _winner;
-
-        badge.mintWinner(_challengeId, _winner);
-
-        uint256 payout = c.prizePool + (c.totalMints * MINT_PRICE);
-        (bool success, ) = payable(_winner).call{value: payout}("");
-        require(success, "Transfer failed");
-
-        emit ChallengeSettled(_challengeId, _winner, payout);
-    }
-
-    function getChallenge(uint256 _challengeId) external view returns (Challenge memory) {
-        return challenges[_challengeId];
-    }
-
-    function _uint2str(uint256 _i) internal pure returns (string memory) {
-        if (_i == 0) return "0";
-        uint256 j = _i;
-        uint256 len;
-        while (j != 0) { len++; j /= 10; }
-        bytes memory bstr = new bytes(len);
-        uint256 k = len;
-        while (_i != 0) {
-            k = k - 1;
-            bytes1 b1 = bytes1(48 + uint8(_i % 10));
-            bstr[k] = b1;
-            _i /= 10;
-        }
-        return string(bstr);
-    }
-
-    receive() external payable {}
-}
+        emit Minted(_challengeId, msg.sender, _
