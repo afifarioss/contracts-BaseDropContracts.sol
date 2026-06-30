@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-import {ERC721} from "openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
-import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-
-contract ChallengeToken is ERC20 {
+contract ChallengeToken {
+    string public name;
+    string public symbol;
     address public immutable factory;
     uint256 public immutable challengeId;
+    mapping(address => uint256) public balanceOf;
+    uint256 public totalSupply;
 
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        address _factory,
-        uint256 _challengeId
-    ) ERC20(_name, _symbol) {
+    constructor(string memory _name, string memory _symbol, address _factory, uint256 _challengeId) {
+        name = _name;
+        symbol = _symbol;
         factory = _factory;
         challengeId = _challengeId;
     }
@@ -26,34 +22,12 @@ contract ChallengeToken is ERC20 {
     }
 
     function mint(address to, uint256 amount) external onlyFactory {
-        _mint(to, amount);
+        balanceOf[to] += amount;
+        totalSupply += amount;
     }
 }
 
-contract ChallengeBadge is ERC721, Ownable {
-    uint256 public nextTokenId;
-    mapping(uint256 => uint256) public challengeIdOfToken;
-    mapping(uint256 => uint256) public tokenIdOfChallengeWinner;
-
-    constructor(address _owner) ERC721("BaseDrop Badge", "BDB") Ownable(_owner) {}
-
-    function mintWinner(uint256 _challengeId, address _winner) external onlyOwner returns (uint256) {
-        require(tokenIdOfChallengeWinner[_challengeId] == 0, "Already minted");
-        uint256 tokenId = nextTokenId++;
-        _mint(_winner, tokenId);
-        challengeIdOfToken[tokenId] = _challengeId;
-        tokenIdOfChallengeWinner[_challengeId] = tokenId;
-        return tokenId;
-    }
-
-    function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
-        address from = super._update(to, tokenId, auth);
-        require(from == address(0) || to == address(0), "Soulbound: non-transferable");
-        return from;
-    }
-}
-
-contract ChallengeFactory is Ownable, ReentrancyGuard {
+contract ChallengeFactory {
     struct Challenge {
         uint256 id;
         string title;
@@ -68,16 +42,17 @@ contract ChallengeFactory is Ownable, ReentrancyGuard {
 
     uint256 public challengeCount;
     mapping(uint256 => Challenge) public challenges;
-    ChallengeBadge public immutable badge;
-
-    uint256 public constant MINT_PRICE = 0.001 ether;
+    address public owner;
 
     event ChallengeCreated(uint256 indexed challengeId, address indexed tokenAddress, string title);
-    event ChallengeSettled(uint256 indexed challengeId, address indexed winner, uint256 prizeAmount);
-    event Minted(uint256 indexed challengeId, address indexed minter, uint256 amount);
 
-    constructor(address _owner) Ownable(_owner) {
-        badge = new ChallengeBadge(address(this));
+    constructor() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner");
+        _;
     }
 
     function createChallenge(
@@ -111,12 +86,24 @@ contract ChallengeFactory is Ownable, ReentrancyGuard {
         return id;
     }
 
-    function mintFor(uint256 _challengeId, uint256 _amount) external {
-        Challenge storage c = challenges[_challengeId];
-        require(block.timestamp < c.deadline, "Challenge ended");
-        require(!c.settled, "Already settled");
+    function getChallenge(uint256 _challengeId) external view returns (Challenge memory) {
+        return challenges[_challengeId];
+    }
 
-        ChallengeToken(c.tokenAddress).mint(msg.sender, _amount);
-        c.totalMints += _amount;
+    function _uint2str(uint256 _i) internal pure returns (string memory) {
+        if (_i == 0) return "0";
+        uint256 j = _i;
+        uint256 len;
+        while (j != 0) { len++; j /= 10; }
+        bytes memory bstr = new bytes(len);
+        uint256 k = len;
+        while (_i != 0) {
+            k = k - 1;
+            bstr[k] = bytes1(48 + uint8(_i % 10));
+            _i /= 10;
+        }
+        return string(bstr);
+    }
 
-        emit Minted(_challengeId, msg.sender, _
+    receive() external payable {}
+}
